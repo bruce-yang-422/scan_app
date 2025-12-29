@@ -484,7 +484,7 @@ class _BatchScanPageState extends State<BatchScanPage> {
         if (batch != null) {
           final items = await DatabaseService.getScanItemsByBatch(widget.batchId);
           final exportResult = await ExportService.buildExportResult(batch, items);
-          lineContent = ExportService.generateLineText(exportResult);
+          lineContent = await ExportService.generateLineText(exportResult);
         }
       } catch (e) {
         // 如果無法生成 LINE 版本，使用 TXT 版本

@@ -82,10 +82,10 @@ class ExportService {
     
     // 並行寫入兩個檔案
     await Future.wait([
-      txtFile.writeAsString(
-        _generateTxt(exportResult),
+      _generateTxt(exportResult).then((content) => txtFile.writeAsString(
+        content,
         encoding: utf8,
-      ),
+      )),
       jsonFile.writeAsString(
         const JsonEncoder.withIndent('  ').convert(exportResult.toJson()),
         encoding: utf8,
@@ -163,10 +163,10 @@ class ExportService {
     
     // 並行寫入兩個檔案
     await Future.wait([
-      txtFile.writeAsString(
-        _generateTxt(exportResult),
+      _generateTxt(exportResult).then((content) => txtFile.writeAsString(
+        content,
         encoding: utf8,
-      ),
+      )),
       jsonFile.writeAsString(
         const JsonEncoder.withIndent('  ').convert(exportResult.toJson()),
         encoding: utf8,
@@ -206,12 +206,17 @@ class ExportService {
     int duplicate = allItems.where((i) => i.scanStatus == ScanStatus.duplicate).length;
     int invalid = allItems.where((i) => i.scanStatus == ScanStatus.invalid).length;
     int error = duplicate + invalid;
+    
+    // 取得非清單內記錄筆數
+    final offListRecords = await DatabaseService.getAllOffListRecords();
+    final offListCount = offListRecords.length;
 
     final summary = ExportSummary(
       total: total,
       scanned: scanned,
       notScanned: notScanned,
       error: error,
+      offListCount: offListCount,
     );
 
     // 轉換為 ExportItem（將 scanTime 從 UTC 轉換為本地時間）
@@ -297,6 +302,7 @@ class ExportService {
       scanned: scanned,
       notScanned: notScanned,
       error: error,
+      offListCount: 0, // 單一批次模式不使用非清單記錄
     );
 
     // 轉換為 ExportItem（將 scanTime 從 UTC 轉換為本地時間）
@@ -331,17 +337,17 @@ class ExportService {
   }
 
   // 產生 TXT 內容（用於分享）
-  static String _generateTxt(ExportResult result) {
-    return _generateTextContent(result, lineWidth: 40);
+  static Future<String> _generateTxt(ExportResult result) async {
+    return await _generateTextContent(result, lineWidth: 40);
   }
 
   // 產生 LINE 複製/貼上版本（簡潔格式，不列出掃描成功清單）
-  static String generateLineText(ExportResult result) {
-    return _generateLineTextContent(result, lineWidth: 20);
+  static Future<String> generateLineText(ExportResult result) async {
+    return await _generateLineTextContent(result, lineWidth: 20);
   }
 
   // 產生 LINE 文字內容（不列出掃描成功清單）
-  static String _generateLineTextContent(ExportResult result, {required int lineWidth}) {
+  static Future<String> _generateLineTextContent(ExportResult result, {required int lineWidth}) async {
     final buffer = StringBuffer();
     
     // 標題
@@ -371,51 +377,10 @@ class ExportService {
     buffer.writeln('已掃描：${result.summary.scanned}');
     buffer.writeln('未掃描：${result.summary.notScanned}');
     buffer.writeln('錯誤（重複/無效）：${result.summary.error}');
-    buffer.writeln();
-
-    // 未掃描清單（重點）
-    final notScannedItems = result.items.where((item) => item.scanStatus == 'PENDING').toList();
-    if (notScannedItems.isNotEmpty) {
-      buffer.writeln('-' * lineWidth);
-      buffer.writeln('未掃描清單（${notScannedItems.length} 筆）');
-      buffer.writeln('-' * lineWidth);
-      for (final item in notScannedItems) {
-        buffer.writeln('訂單編號：${item.orderNo}');
-        buffer.writeln('物流單號：${item.logisticsNo}');
-        if (item.logisticsCompany != null) {
-          buffer.writeln('物流公司：${item.logisticsCompany}');
-        }
-        if (item.sheetNote != null) {
-          buffer.writeln('備註：${item.sheetNote}');
-        }
-        buffer.writeln();
-      }
+    if (result.summary.offListCount > 0) {
+      buffer.writeln('非清單：${result.summary.offListCount}');
     }
-
-    // 錯誤／重複明細
-    // 注意：根據規格，INVALID 不會寫入資料庫，所以這裡只會有 DUPLICATE
-    final errorItems = result.items.where((item) => 
-      item.scanStatus == 'DUPLICATE'
-    ).toList();
-    if (errorItems.isNotEmpty) {
-      buffer.writeln('-' * lineWidth);
-      buffer.writeln('錯誤／重複明細（${errorItems.length} 筆）');
-      buffer.writeln('-' * lineWidth);
-      for (final item in errorItems) {
-        buffer.writeln('訂單編號：${item.orderNo}');
-        buffer.writeln('物流單號：${item.logisticsNo}');
-        buffer.writeln('狀態：${_getStatusDisplayName(item.scanStatus)}');
-        if (item.scanTime != null) {
-          buffer.writeln('掃描時間：${_formatDateTimeWithTimezone(item.scanTime!)}');
-        }
-        if (item.scanNote != null) {
-          buffer.writeln('備註：${item.scanNote}');
-        }
-        buffer.writeln();
-      }
-    }
-
-    // LINE 版本不列出已掃描成功的清單，只顯示統計摘要中的數量
+    // LINE 版本只顯示摘要，不顯示任何明細
 
     buffer.writeln();
     buffer.writeln('=' * lineWidth);
@@ -426,7 +391,7 @@ class ExportService {
   }
 
   // 產生文字內容（通用方法）
-  static String _generateTextContent(ExportResult result, {required int lineWidth}) {
+  static Future<String> _generateTextContent(ExportResult result, {required int lineWidth}) async {
     final buffer = StringBuffer();
     
     // 標題
@@ -456,6 +421,9 @@ class ExportService {
     buffer.writeln('已掃描：${result.summary.scanned}');
     buffer.writeln('未掃描：${result.summary.notScanned}');
     buffer.writeln('錯誤（重複/無效）：${result.summary.error}');
+    if (result.summary.offListCount > 0) {
+      buffer.writeln('非清單：${result.summary.offListCount}');
+    }
     buffer.writeln();
 
     // 未掃描清單（重點）
@@ -512,6 +480,24 @@ class ExportService {
       buffer.writeln('  分店：${result.storeName}');
       buffer.writeln('  成功：${scannedItems.length} 筆');
       buffer.writeln();
+    }
+
+    // 非清單內記錄明細
+    if (result.summary.offListCount > 0) {
+      final offListRecords = await DatabaseService.getAllOffListRecords();
+      if (offListRecords.isNotEmpty) {
+        buffer.writeln('-' * lineWidth);
+        buffer.writeln('非清單內記錄明細（${offListRecords.length} 筆）');
+        buffer.writeln('-' * lineWidth);
+        for (final record in offListRecords) {
+          buffer.writeln('物流單號：${record['logistics_no']}');
+          if (record['scan_time'] != null) {
+            final scanTime = record['scan_time'] as String;
+            buffer.writeln('掃描時間：${_formatDateTimeWithTimezone(scanTime)}');
+          }
+          buffer.writeln();
+        }
+      }
     }
 
     buffer.writeln();

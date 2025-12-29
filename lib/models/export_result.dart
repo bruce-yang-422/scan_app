@@ -77,12 +77,14 @@ class ExportSummary {
   final int scanned;
   final int notScanned;
   final int error; // duplicate + invalid
+  final int offListCount; // 非清單內記錄筆數
 
   ExportSummary({
     required this.total,
     required this.scanned,
     required this.notScanned,
     required this.error,
+    this.offListCount = 0,
   });
 
   Map<String, dynamic> toJson() {
@@ -91,6 +93,7 @@ class ExportSummary {
       'scanned': scanned,
       'not_scanned': notScanned,
       'error': error,
+      'off_list_count': offListCount,
     };
   }
 }

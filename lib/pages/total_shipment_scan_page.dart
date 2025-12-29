@@ -96,6 +96,8 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
       setState(() {
         _offListRecordModeEnabled = newValue;
       });
+      // 重新整理資料以更新統計
+      await _loadItems();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(newValue ? '已開啟非清單內出貨紀錄模式' : '已關閉非清單內出貨紀錄模式'),
@@ -130,11 +132,15 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
   }
   
   // 取得統計資訊
-  Map<String, dynamic> _getStatistics() {
+  Future<Map<String, dynamic>> _getStatistics() async {
     final total = _items.length;
     final scanned = _items.where((item) => item.scanStatus == ScanStatus.scanned).length;
     final pending = _items.where((item) => item.scanStatus == ScanStatus.pending).length;
     final duplicate = _items.where((item) => item.scanStatus == ScanStatus.duplicate).length;
+    
+    // 取得非清單內記錄筆數
+    final offListRecords = await DatabaseService.getAllOffListRecords();
+    final offListCount = offListRecords.length;
     
     // 取得所有店家名稱（去重）
     final storeNames = <String>[];
@@ -159,6 +165,7 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
       'scanned': scanned,
       'pending': pending,
       'duplicate': duplicate,
+      'offListCount': offListCount,
       'storeNames': uniqueStoreNames,
       'orderDates': uniqueOrderDates,
       'batchCount': _batches.length,
@@ -670,7 +677,7 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
             allStoreNames,
             allOrderDates,
           );
-          lineContent = ExportService.generateLineText(exportResult);
+          lineContent = await ExportService.generateLineText(exportResult);
         }
       } catch (e) {
         // 如果無法生成 LINE 版本，使用 TXT 版本
@@ -957,9 +964,15 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
 
   // 建立資訊顯示區
   Widget _buildInfoSection() {
-    final stats = _getStatistics();
-    
-    return Container(
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _getStatistics(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const SizedBox.shrink();
+        }
+        final stats = snapshot.data!;
+        
+        return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       color: Theme.of(context).brightness == Brightness.dark
@@ -1070,7 +1083,7 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
             ],
           ),
           const SizedBox(height: 8),
-          // 統計資訊
+          // 統計資訊（根據開關狀態決定是否顯示非清單統計）
           Row(
             children: [
               Expanded(
@@ -1084,10 +1097,19 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
               Expanded(
                 child: _buildStatItem('已掃描', '${stats['scanned']}', Colors.green),
               ),
+              // 只有開啟非清單內出貨紀錄模式時才顯示非清單統計
+              if (_offListRecordModeEnabled) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildStatItem('非清單', '${stats['offListCount']}', Colors.orange),
+                ),
+              ],
             ],
           ),
         ],
       ),
+    );
+      },
     );
   }
   

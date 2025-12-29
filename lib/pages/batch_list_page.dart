@@ -140,9 +140,9 @@ class _BatchListPageState extends State<BatchListPage> {
         title: const Text('出貨核對系統'),
         automaticallyImplyLeading: false,
         actions: [
-          IconButton(
+          TextButton.icon(
             icon: const Icon(Icons.settings),
-            tooltip: '設定',
+            label: const Text('設定'),
             onPressed: () async {
               final result = await Navigator.push(
                 context,
