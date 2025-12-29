@@ -4,6 +4,7 @@ import 'theme/app_theme.dart';
 import 'pages/batch_list_page.dart';
 import 'services/cleanup_service.dart';
 import 'services/app_settings_service.dart';
+import 'services/network_service.dart';
 import 'utils/timezone_helper.dart';
 
 void main() async {
@@ -26,6 +27,17 @@ void main() async {
   } catch (e) {
     // 忽略清理錯誤，不影響 App 啟動
     debugPrint('清理舊資料時發生錯誤：$e');
+  }
+
+  // App 啟動時清理過期的匯出檔案
+  try {
+    final fileResult = await CleanupService.cleanupOldExportFiles();
+    if (fileResult.deletedFiles > 0 || fileResult.deletedDirs > 0) {
+      debugPrint('已清理過期匯出檔案：刪除 ${fileResult.deletedFiles} 個檔案，${fileResult.deletedDirs} 個目錄');
+    }
+  } catch (e) {
+    // 忽略清理錯誤，不影響 App 啟動
+    debugPrint('清理過期匯出檔案時發生錯誤：$e');
   }
 
   // 初始化時區設定
@@ -86,6 +98,11 @@ class _ScanAppState extends State<ScanApp> {
     }
   }
 
+  // 公開方法供子頁面調用以更新主題
+  void updateThemeMode() {
+    _loadThemeMode();
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -94,7 +111,9 @@ class _ScanAppState extends State<ScanApp> {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: _themeMode,
-      home: const BatchListPage(),
+      home: BatchListPage(
+        onThemeModeChanged: updateThemeMode,
+      ),
     );
   }
 }

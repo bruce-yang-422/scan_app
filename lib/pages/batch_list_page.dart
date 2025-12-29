@@ -7,6 +7,7 @@ import '../services/database_service.dart';
 import '../services/scan_service.dart';
 import '../services/google_sheets_service.dart';
 import '../services/store_url_service.dart';
+import '../services/network_service.dart';
 import '../utils/timezone_helper.dart';
 import '../utils/date_parser.dart';
 import 'batch_import_page.dart';
@@ -16,7 +17,9 @@ import 'settings_page.dart';
 
 // Batch 列表頁面
 class BatchListPage extends StatefulWidget {
-  const BatchListPage({super.key});
+  final VoidCallback? onThemeModeChanged;
+  
+  const BatchListPage({super.key, this.onThemeModeChanged});
 
   @override
   State<BatchListPage> createState() => _BatchListPageState();
@@ -30,6 +33,71 @@ class _BatchListPageState extends State<BatchListPage> {
   void initState() {
     super.initState();
     _loadBatches();
+    // 檢查網路狀態
+    _checkNetworkStatus();
+  }
+
+  // 檢查網路狀態
+  Future<void> _checkNetworkStatus() async {
+    // 等待一小段時間確保頁面已經建立
+    await Future.delayed(const Duration(milliseconds: 300));
+    
+    if (!mounted) return;
+    
+    final hasNetwork = await NetworkService.hasNetworkConnection();
+    
+    if (!hasNetwork && mounted) {
+      // 沒有網路，顯示警告對話框
+      _showNoNetworkDialog();
+    }
+  }
+
+  // 顯示無網路警告對話框
+  void _showNoNetworkDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // 不允許點擊外部關閉
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(
+                Icons.wifi_off,
+                color: Colors.orange[700],
+                size: 28,
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  '無網路連線',
+                  style: TextStyle(fontSize: 20),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            '目前沒有偵測到手機網路或 WiFi 連線。\n\n'
+            '部分功能（如匯入 Google Sheets）需要網路連線才能使用。\n\n'
+            '請檢查您的網路設定後再繼續使用。',
+            style: TextStyle(fontSize: 16),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              child: const Text(
+                '確認',
+                style: TextStyle(fontSize: 16),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<void> _loadBatches() async {
@@ -75,13 +143,20 @@ class _BatchListPageState extends State<BatchListPage> {
           IconButton(
             icon: const Icon(Icons.settings),
             tooltip: '設定',
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              final result = await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => const SettingsPage(),
                 ),
               );
+              // 如果返回 true，表示主題模式已更改，需要重新載入主題
+              if (result == true) {
+                // 通知主應用程式更新主題
+                widget.onThemeModeChanged?.call();
+                // 重新載入批次列表以確保 UI 更新
+                _loadBatches();
+              }
             },
           ),
         ],

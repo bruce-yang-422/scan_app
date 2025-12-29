@@ -26,6 +26,10 @@ class AppSettingsService {
   static const String _keyThemeMode = 'theme_mode';
   static const String _defaultThemeMode = 'auto'; // 預設自動
 
+  // 匯出檔案保留天數
+  static const String _keyExportFileRetentionDays = 'export_file_retention_days';
+  static const int _defaultExportFileRetentionDays = 10; // 預設保留 10 天
+
   // 取得狀態顯示時間（秒）- 所有狀態共用
   static Future<int> getStatusDelaySeconds() async {
     final prefs = await SharedPreferences.getInstance();
@@ -108,6 +112,18 @@ class AppSettingsService {
   static Future<void> setThemeMode(String mode) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyThemeMode, mode);
+  }
+
+  // 取得匯出檔案保留天數
+  static Future<int> getExportFileRetentionDays() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_keyExportFileRetentionDays) ?? _defaultExportFileRetentionDays;
+  }
+
+  // 設定匯出檔案保留天數
+  static Future<void> setExportFileRetentionDays(int days) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyExportFileRetentionDays, days);
   }
 }
 

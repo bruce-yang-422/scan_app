@@ -696,17 +696,19 @@ class _ThemeModeSettingsPageState extends State<ThemeModeSettingsPage> {
         _hasChanges = false;
       });
       
-      // 通知主應用程式更新主題
+      // 通知主應用程式更新主題（返回 true 表示需要更新主題）
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('設定已儲存，請重新啟動應用程式以套用變更'),
+            content: const Text('設定已儲存'),
             backgroundColor: Theme.of(context).brightness == Brightness.dark
               ? Colors.green[700]
               : Colors.green,
-            duration: const Duration(seconds: 3),
+            duration: const Duration(seconds: 2),
           ),
         );
+        // 返回 true 通知主應用程式更新主題
+        Navigator.pop(context, true);
       }
     }
   }

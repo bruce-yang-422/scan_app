@@ -147,16 +147,15 @@ class ExportService {
       allOrderDates.toList()..sort(),
     );
     
-    // 使用第一個批次的 storeName 和 orderDate 作為檔名（或使用 "總出貨"）
-    final storeName = allStoreNames.length == 1 
-        ? allStoreNames.first 
-        : '總出貨';
-    final fileName = 'scan_result_${storeName}_$timestamp';
+    // 總出貨模式：檔名和目錄都統一使用 "總出貨"
+    // 總出貨模式本身就是跨多個店（來源）的匯總，所以檔名應該統一使用 "總出貨"
+    final fileName = 'scan_result_總出貨_$timestamp';
 
-    // 取得 reports 目錄（使用第一個批次的路徑，或使用總出貨目錄）
-    final reportsDir = batches.isNotEmpty
-        ? await _getReportsDirectory(batches.first.storeName, batches.first.orderDate)
-        : await _getReportsDirectory('總出貨', DateTime.now().toIso8601String().split('T')[0]);
+    // 取得 reports 目錄（總出貨模式統一使用 "總出貨" 目錄）
+    // 使用今天的日期作為 orderDate（因為總出貨可能包含多個日期）
+    final today = DateTime.now();
+    final todayDate = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    final reportsDir = await _getReportsDirectory('總出貨', todayDate);
 
     // 同時產生 TXT 和 JSON 檔案
     final txtFile = File(path.join(reportsDir.path, '$fileName.txt'));
