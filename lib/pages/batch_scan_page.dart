@@ -581,28 +581,6 @@ class _BatchScanPageState extends State<BatchScanPage> {
                   }
                 },
               ),
-            // 開啟 TXT 檔案（使用分享功能開啟）
-            TextButton.icon(
-              icon: const Icon(Icons.open_in_new, size: 18),
-              label: const Text('開啟 TXT'),
-              onPressed: () async {
-                try {
-                  // 使用分享功能來開啟檔案（系統會提供開啟選項）
-                  await ShareService.shareFiles(files.txtPath);
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('開啟檔案失敗：${e.toString()}'),
-                        backgroundColor: Theme.of(context).brightness == Brightness.dark
-                ? Colors.red[700]
-                : Colors.red,
-                      ),
-                    );
-                  }
-                }
-              },
-            ),
             // 分享 TXT
             TextButton.icon(
               icon: const Icon(Icons.share, size: 18),
