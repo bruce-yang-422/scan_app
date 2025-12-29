@@ -1,0 +1,75 @@
+# =========================
+# OS / General
+# =========================
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+*.pyc
+.history/
+.svn/
+
+# =========================
+# IDE / Editor
+# =========================
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.atom/
+
+# =========================
+# Flutter / Dart
+# =========================
+.dart_tool/
+.pub/
+.pub-cache/
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+/build/
+/coverage/
+
+# Generated documentation
+**/doc/api/
+
+# =========================
+# Android
+# =========================
+android/.gradle/
+android/local.properties
+android/key.properties
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# =========================
+# iOS
+# =========================
+ios/Pods/
+ios/Flutter/ephemeral/
+ios/Flutter/.last_build_id
+ios/Runner.xcworkspace/
+*.xcuserstate
+*.xcuserdata
+
+# =========================
+# Desktop platforms
+# =========================
+macos/Flutter/ephemeral/
+windows/flutter/ephemeral/
+linux/flutter/ephemeral/
+
+# =========================
+# Symbol / Obfuscation
+# =========================
+app.*.symbols
+app.*.map.json
+
+# =========================
+# Temporary / Generated
+# =========================
+*.lock.tmp
+.cache/
