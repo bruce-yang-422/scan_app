@@ -44,6 +44,7 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
   final AudioPlayer _audioPlayer = AudioPlayer(); // 音效播放器
   Timer? _scannerInputTimer; // 掃描槍輸入計時器（用於自動提交）
   bool _offListRecordModeEnabled = false; // 非清單內出貨紀錄模式開關
+  int _statisticsKey = 0; // 用於強制重新整理統計UI
 
   @override
   void initState() {
@@ -93,11 +94,13 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
     final newValue = !_offListRecordModeEnabled;
     await AppSettingsService.setOffListRecordModeEnabled(newValue);
     if (mounted) {
-      setState(() {
-        _offListRecordModeEnabled = newValue;
-      });
       // 重新整理資料以更新統計
       await _loadItems();
+      // 更新狀態並強制重新整理統計UI
+      setState(() {
+        _offListRecordModeEnabled = newValue;
+        _statisticsKey++; // 改變key以強制FutureBuilder重新構建
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(newValue ? '已開啟非清單內出貨紀錄模式' : '已關閉非清單內出貨紀錄模式'),
@@ -965,6 +968,7 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
   // 建立資訊顯示區
   Widget _buildInfoSection() {
     return FutureBuilder<Map<String, dynamic>>(
+      key: ValueKey(_statisticsKey), // 使用key來強制重新構建
       future: _getStatistics(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
