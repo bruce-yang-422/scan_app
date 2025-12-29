@@ -319,13 +319,14 @@ class DatabaseService {
   }
 
   // 標記 Batch 為已完成
-  static Future<void> finishBatch(String batchId) async {
+  // scanFinishTime: 掃描完成時間（最後一次掃描時間），如果為 null 則使用當前時間
+  static Future<void> finishBatch(String batchId, {String? scanFinishTime}) async {
     final db = await database;
-    // 使用 UTC 時間儲存（標準時間，從 NTP 同步）
-    final now = (await TimezoneHelper.getUtcNow()).toIso8601String();
+    // 如果提供了掃描完成時間，使用該時間；否則使用當前時間
+    final finishedAt = scanFinishTime ?? (await TimezoneHelper.getUtcNow()).toIso8601String();
     await db.update(
       'batches',
-      {'finished_at': now},
+      {'finished_at': finishedAt},
       where: 'id = ?',
       whereArgs: [batchId],
     );

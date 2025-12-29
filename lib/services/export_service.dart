@@ -92,9 +92,31 @@ class ExportService {
       ),
     ]);
 
-    // 只有在首次匯出時才標記為已完成
+    // 計算掃描完成時間（最後一次掃描時間）
+    String? scanFinishTimeUtc;
     if (!batch.isFinished) {
-      await DatabaseService.finishBatch(batchId);
+      // 如果批次未完成，計算最後一次掃描時間
+      DateTime? latestScanTime;
+      for (final item in items) {
+        if (item.scanTime != null) {
+          try {
+            final scanTime = DateTime.parse(item.scanTime!);
+            if (latestScanTime == null || scanTime.isAfter(latestScanTime)) {
+              latestScanTime = scanTime;
+            }
+          } catch (e) {
+            // 忽略解析錯誤
+          }
+        }
+      }
+      if (latestScanTime != null) {
+        scanFinishTimeUtc = latestScanTime.toIso8601String();
+      }
+    }
+
+    // 只有在首次匯出時才標記為已完成，並保存掃描完成時間
+    if (!batch.isFinished) {
+      await DatabaseService.finishBatch(batchId, scanFinishTime: scanFinishTimeUtc);
     }
 
     return ExportFiles(
@@ -186,8 +208,50 @@ class ExportService {
     List<String> storeNames,
     List<String> orderDates,
   ) async {
-    // 使用本地時間（台灣時間）
-    final scanFinishTime = await TimezoneHelper.formatLocalNowIso();
+    // 計算掃描完成時間（最後一次掃描時間）
+    // 優先使用已完成的批次 finishedAt，否則從所有 items 中找到最新的 scanTime
+    DateTime? latestScanTime;
+    
+    // 先檢查已完成的批次
+    for (final batch in batches) {
+      if (batch.finishedAt != null) {
+        try {
+          final finishedAt = DateTime.parse(batch.finishedAt!);
+          if (latestScanTime == null || finishedAt.isAfter(latestScanTime)) {
+            latestScanTime = finishedAt;
+          }
+        } catch (e) {
+          // 忽略解析錯誤
+        }
+      }
+    }
+    
+    // 如果沒有已完成的批次，從所有 items 中找到最新的 scanTime
+    if (latestScanTime == null) {
+      for (final item in allItems) {
+        if (item.scanTime != null) {
+          try {
+            final scanTime = DateTime.parse(item.scanTime!);
+            if (latestScanTime == null || scanTime.isAfter(latestScanTime)) {
+              latestScanTime = scanTime;
+            }
+          } catch (e) {
+            // 忽略解析錯誤
+          }
+        }
+      }
+    }
+    
+    String scanFinishTime;
+    if (latestScanTime != null) {
+      scanFinishTime = TimezoneHelper.convertUtcToLocalIso(latestScanTime.toIso8601String());
+    } else {
+      // 如果沒有掃描時間，使用當前時間
+      scanFinishTime = await TimezoneHelper.formatLocalNowIso();
+    }
+    
+    // 匯出時間（實際匯出時的時間）
+    final exportTime = await TimezoneHelper.formatLocalNowIso();
 
     // 取得掃描人員資料
     final scannerName = await AppSettingsService.getScannerName();
@@ -255,6 +319,7 @@ class ExportService {
       storeName: storeName,
       orderDate: orderDate,
       scanFinishTime: scanFinishTime,
+      exportTime: exportTime,
       summary: summary,
       items: exportItems,
       scannerName: scannerName.isNotEmpty ? scannerName : null,
@@ -280,8 +345,36 @@ class ExportService {
 
   // 建立匯出結果（內部方法）
   static Future<ExportResult> _buildExportResult(Batch batch, List<ScanItem> items) async {
-    // 使用本地時間（但標示為本地時間）
-    final scanFinishTime = await TimezoneHelper.formatLocalNowIso();
+    // 計算掃描完成時間（最後一次掃描時間）
+    String scanFinishTime;
+    if (batch.finishedAt != null) {
+      // 如果批次已完成，使用 finishedAt 作為掃描完成時間
+      scanFinishTime = TimezoneHelper.convertUtcToLocalIso(batch.finishedAt!);
+    } else {
+      // 如果批次未完成，從所有 items 中找到最新的 scanTime
+      DateTime? latestScanTime;
+      for (final item in items) {
+        if (item.scanTime != null) {
+          try {
+            final scanTime = DateTime.parse(item.scanTime!);
+            if (latestScanTime == null || scanTime.isAfter(latestScanTime)) {
+              latestScanTime = scanTime;
+            }
+          } catch (e) {
+            // 忽略解析錯誤
+          }
+        }
+      }
+      if (latestScanTime != null) {
+        scanFinishTime = TimezoneHelper.convertUtcToLocalIso(latestScanTime.toIso8601String());
+      } else {
+        // 如果沒有掃描時間，使用當前時間
+        scanFinishTime = await TimezoneHelper.formatLocalNowIso();
+      }
+    }
+    
+    // 匯出時間（實際匯出時的時間）
+    final exportTime = await TimezoneHelper.formatLocalNowIso();
 
     // 取得掃描人員資料
     final scannerName = await AppSettingsService.getScannerName();
@@ -329,6 +422,7 @@ class ExportService {
       storeName: batch.storeName,
       orderDate: batch.orderDate,
       scanFinishTime: scanFinishTime,
+      exportTime: exportTime,
       summary: summary,
       items: exportItems,
       scannerName: scannerName.isNotEmpty ? scannerName : null,
@@ -361,6 +455,8 @@ class ExportService {
     buffer.writeln('訂單日期：${result.orderDate}');
     // scanFinishTime 已經是台灣時間格式（yyyy-MM-dd HH:mm:ss），直接使用
     buffer.writeln('掃描完成時間：${result.scanFinishTime}');
+    // exportTime 已經是台灣時間格式（yyyy-MM-dd HH:mm:ss），直接使用
+    buffer.writeln('匯出時間：${result.exportTime}');
     if (result.scannerName != null && result.scannerName!.isNotEmpty) {
       buffer.writeln('掃描人員姓名：${result.scannerName}');
     }
@@ -405,6 +501,8 @@ class ExportService {
     buffer.writeln('訂單日期：${result.orderDate}');
     // scanFinishTime 已經是台灣時間格式（yyyy-MM-dd HH:mm:ss），直接使用
     buffer.writeln('掃描完成時間：${result.scanFinishTime}');
+    // exportTime 已經是台灣時間格式（yyyy-MM-dd HH:mm:ss），直接使用
+    buffer.writeln('匯出時間：${result.exportTime}');
     if (result.scannerName != null && result.scannerName!.isNotEmpty) {
       buffer.writeln('掃描人員姓名：${result.scannerName}');
     }
@@ -558,6 +656,7 @@ class ExportService {
     buffer.writeln('# 分店名稱：${result.storeName}');
     buffer.writeln('# 訂單日期：${result.orderDate}');
     buffer.writeln('# 掃描完成時間：${result.scanFinishTime}');
+    buffer.writeln('# 匯出時間：${result.exportTime}');
     if (result.scannerName != null && result.scannerName!.isNotEmpty) {
       buffer.writeln('# 掃描人員姓名：${result.scannerName}');
     }

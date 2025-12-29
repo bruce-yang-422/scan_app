@@ -4,7 +4,8 @@ import 'batch.dart';
 class ExportResult {
   final String storeName;
   final String orderDate;
-  final String scanFinishTime;
+  final String scanFinishTime; // 掃描完成時間（最後一次掃描時間，固定不變）
+  final String exportTime; // 匯出時間（實際匯出時的時間，會變動）
   final ExportSummary summary;
   final List<ExportItem> items;
   final String? scannerName; // 掃描人員姓名（可選）
@@ -15,6 +16,7 @@ class ExportResult {
     required this.storeName,
     required this.orderDate,
     required this.scanFinishTime,
+    required this.exportTime,
     required this.summary,
     required this.items,
     this.scannerName,
@@ -45,7 +47,8 @@ class ExportResult {
       // 統計摘要和掃描人資訊（開頭）
       'store_name': storeName,
       'order_date': orderDate,
-      'scan_finish_time': scanFinishTime,
+      'scan_finish_time': scanFinishTime, // 掃描完成時間（最後一次掃描時間）
+      'export_time': exportTime, // 匯出時間（實際匯出時的時間）
       'summary': summary.toJson(),
       // 掃描人員資料（如果有）
       if (scannerName != null && scannerName!.isNotEmpty)

@@ -38,6 +38,24 @@ class AppSettingsService {
   static const String _keyOffListRecordModeEnabled = 'off_list_record_mode_enabled';
   static const bool _defaultOffListRecordModeEnabled = false; // 預設關閉
 
+  // 非清單內出貨紀錄模式預設值（用於設定頁面）
+  static const String _keyOffListRecordModeDefault = 'off_list_record_mode_default';
+  static const bool _defaultOffListRecordModeDefault = false; // 預設關閉
+
+  // 上次清除非清單內記錄的時間（ISO 8601格式）
+  static const String _keyLastOffListCleanupTime = 'last_off_list_cleanup_time';
+
+  // 上次清除一般掃描記錄的時間（ISO 8601格式）
+  static const String _keyLastScanRecordsCleanupTime = 'last_scan_records_cleanup_time';
+
+  // 一般掃描記錄自動歸零開關
+  static const String _keyAutoCleanupScanRecords = 'auto_cleanup_scan_records';
+  static const bool _defaultAutoCleanupScanRecords = false; // 預設關閉
+
+  // 非清單內記錄自動歸零開關
+  static const String _keyAutoCleanupOffListRecords = 'auto_cleanup_off_list_records';
+  static const bool _defaultAutoCleanupOffListRecords = false; // 預設關閉
+
   // 取得狀態顯示時間（秒）- 所有狀態共用
   static Future<int> getStatusDelaySeconds() async {
     final prefs = await SharedPreferences.getInstance();
@@ -163,6 +181,66 @@ class AppSettingsService {
   static Future<void> setOffListRecordModeEnabled(bool enabled) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyOffListRecordModeEnabled, enabled);
+  }
+
+  // 取得非清單內出貨紀錄模式預設值
+  static Future<bool> getOffListRecordModeDefault() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyOffListRecordModeDefault) ?? _defaultOffListRecordModeDefault;
+  }
+
+  // 設定非清單內出貨紀錄模式預設值
+  static Future<void> setOffListRecordModeDefault(bool defaultValue) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyOffListRecordModeDefault, defaultValue);
+  }
+
+  // 取得上次清除非清單內記錄的時間
+  static Future<String?> getLastOffListCleanupTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyLastOffListCleanupTime);
+  }
+
+  // 設定上次清除非清單內記錄的時間
+  static Future<void> setLastOffListCleanupTime(String time) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyLastOffListCleanupTime, time);
+  }
+
+  // 取得一般掃描記錄自動歸零開關狀態
+  static Future<bool> isAutoCleanupScanRecordsEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyAutoCleanupScanRecords) ?? _defaultAutoCleanupScanRecords;
+  }
+
+  // 設定一般掃描記錄自動歸零開關
+  static Future<void> setAutoCleanupScanRecordsEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyAutoCleanupScanRecords, enabled);
+  }
+
+  // 取得非清單內記錄自動歸零開關狀態
+  static Future<bool> isAutoCleanupOffListRecordsEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyAutoCleanupOffListRecords) ?? _defaultAutoCleanupOffListRecords;
+  }
+
+  // 設定非清單內記錄自動歸零開關
+  static Future<void> setAutoCleanupOffListRecordsEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyAutoCleanupOffListRecords, enabled);
+  }
+
+  // 取得上次清除一般掃描記錄的時間
+  static Future<String?> getLastScanRecordsCleanupTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyLastScanRecordsCleanupTime);
+  }
+
+  // 設定上次清除一般掃描記錄的時間
+  static Future<void> setLastScanRecordsCleanupTime(String time) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyLastScanRecordsCleanupTime, time);
   }
 }
 

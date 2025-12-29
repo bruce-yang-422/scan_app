@@ -10,8 +10,10 @@ import '../services/database_service.dart';
 import '../services/export_service.dart';
 import '../services/share_service.dart';
 import '../services/app_settings_service.dart';
+import '../services/cleanup_service.dart';
 import '../utils/timezone_helper.dart';
 import '../utils/barcode_validator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vibration/vibration.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/services.dart';
@@ -81,12 +83,23 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
 
   // 載入非清單內出貨紀錄模式開關狀態
   Future<void> _loadOffListRecordMode() async {
-    final enabled = await AppSettingsService.isOffListRecordModeEnabled();
+    // 如果沒有保存過開關狀態，使用預設值
+    final savedEnabled = await AppSettingsService.isOffListRecordModeEnabled();
+    final hasSavedValue = await _hasSavedOffListRecordModeValue();
+    
+    final enabled = hasSavedValue ? savedEnabled : await AppSettingsService.getOffListRecordModeDefault();
+    
     if (mounted) {
       setState(() {
         _offListRecordModeEnabled = enabled;
       });
     }
+  }
+
+  // 檢查是否有保存過非清單內出貨紀錄模式開關狀態
+  Future<bool> _hasSavedOffListRecordModeValue() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.containsKey('off_list_record_mode_enabled');
   }
 
   // 切換非清單內出貨紀錄模式
@@ -107,6 +120,60 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
           duration: const Duration(seconds: 2),
         ),
       );
+    }
+  }
+
+  // 手動清除非清單內記錄
+  Future<void> _clearOffListRecords() async {
+    // 確認對話框
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('確認清除'),
+        content: const Text('確定要清除非清單內記錄嗎？此操作無法復原。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('確定清除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        final deletedCount = await CleanupService.cleanupOffListRecordsManually();
+        
+        // 重新整理資料以更新統計
+        await _loadItems();
+        setState(() {
+          _statisticsKey++; // 強制重新整理統計UI
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('已清除非清單內記錄：$deletedCount 筆'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('清除失敗：$e'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -852,6 +919,15 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
               onPressed: _toggleOffListRecordMode,
             ),
           ),
+          // 手動清除非清單內記錄按鈕（僅在開啟模式時顯示）
+          if (_offListRecordModeEnabled)
+            Tooltip(
+              message: '清除非清單內記錄',
+              child: IconButton(
+                icon: const Icon(Icons.delete_sweep),
+                onPressed: _clearOffListRecords,
+              ),
+            ),
         ],
       ),
       body: Column(

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../services/app_settings_service.dart';
 import '../services/database_service.dart';
 import '../utils/timezone_helper.dart';
+import '../models/scan_item.dart';
+import '../models/scan_status.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'dart:io';
@@ -114,11 +116,19 @@ class _SettingsPageState extends State<SettingsPage> {
             ...List.generate(categories.length, (index) {
               final category = categories[index];
               final isSelected = _selectedIndex == index;
+              // 深色模式下，選中項使用亮色文字；淺色模式下，使用主題色
+              final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+              final selectedTextColor = isDarkMode 
+                  ? Colors.white 
+                  : Theme.of(context).colorScheme.primary;
+              final selectedIconColor = isDarkMode 
+                  ? Colors.white 
+                  : Theme.of(context).colorScheme.primary;
               return ListTile(
                 leading: Icon(
                   category.icon,
                   color: isSelected 
-                      ? Theme.of(context).primaryColor 
+                      ? selectedIconColor
                       : Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                 ),
                 title: Text(
@@ -126,7 +136,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   style: TextStyle(
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                     color: isSelected 
-                        ? Theme.of(context).primaryColor 
+                        ? selectedTextColor
                         : Theme.of(context).colorScheme.onSurface,
                   ),
                   overflow: TextOverflow.ellipsis,
@@ -814,8 +824,7 @@ class _ThemeModeSettingsPageState extends State<ThemeModeSettingsPage> {
                     ),
                     const Divider(),
                     RadioListTile<String>(
-                      title: const Text('深色（高對比）'),
-                      subtitle: const Text('深色背景，適合戶外強光環境'),
+                      title: const Text('深色'),
                       value: 'dark',
                       groupValue: _selectedMode,
                       onChanged: (value) {
@@ -827,8 +836,7 @@ class _ThemeModeSettingsPageState extends State<ThemeModeSettingsPage> {
                     ),
                     const Divider(),
                     RadioListTile<String>(
-                      title: const Text('淺色（室內）'),
-                      subtitle: const Text('淺色背景，適合室內環境'),
+                      title: const Text('淺色'),
                       value: 'light',
                       groupValue: _selectedMode,
                       onChanged: (value) {
@@ -1039,157 +1047,367 @@ class PrivacyPolicyPage extends StatelessWidget {
 }
 
 // 資料管理頁面
-class DataManagementPage extends StatelessWidget {
+class DataManagementPage extends StatefulWidget {
   const DataManagementPage({super.key});
 
-  Future<void> _clearAllData(BuildContext context) async {
-    
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('確認清空資料'),
-        content: const Text(
-          '此操作將刪除所有批次資料、掃描記錄和匯出檔案。\n\n此操作無法復原，確定要繼續嗎？',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('確定'),
-          ),
-        ],
-      ),
-    );
+  @override
+  State<DataManagementPage> createState() => _DataManagementPageState();
+}
 
-    if (confirmed != true) return;
+class _DataManagementPageState extends State<DataManagementPage> {
+  bool _autoCleanupScanRecords = false;
+  bool _autoCleanupOffListRecords = false;
+  bool _offListRecordModeDefault = false;
+  bool _isLoading = true;
 
-    // 顯示載入中
-    if (context.mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
-      );
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final scanRecords = await AppSettingsService.isAutoCleanupScanRecordsEnabled();
+    final offListRecords = await AppSettingsService.isAutoCleanupOffListRecordsEnabled();
+    final offListDefault = await AppSettingsService.getOffListRecordModeDefault();
+    if (mounted) {
+      setState(() {
+        _autoCleanupScanRecords = scanRecords;
+        _autoCleanupOffListRecords = offListRecords;
+        _offListRecordModeDefault = offListDefault;
+        _isLoading = false;
+      });
     }
+  }
 
-    try {
-      // 清空資料庫
-      final batches = await DatabaseService.getAllBatches();
-      for (final batch in batches) {
-        await DatabaseService.deleteBatch(batch.id);
-      }
-
-      // 刪除匯出檔案
-      final appDocDir = await getApplicationDocumentsDirectory();
-      final reportsDir = Directory('${appDocDir.path}/reports');
-      if (await reportsDir.exists()) {
-        await reportsDir.delete(recursive: true);
-      }
-
-      // 關閉載入中
-      if (context.mounted) {
-        Navigator.pop(context);
-      }
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('所有資料已清空'),
-            backgroundColor: Theme.of(context).brightness == Brightness.dark
+  Future<void> _saveSettings() async {
+    await AppSettingsService.setAutoCleanupScanRecordsEnabled(_autoCleanupScanRecords);
+    await AppSettingsService.setAutoCleanupOffListRecordsEnabled(_autoCleanupOffListRecords);
+    await AppSettingsService.setOffListRecordModeDefault(_offListRecordModeDefault);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('設定已儲存'),
+          backgroundColor: Theme.of(context).brightness == Brightness.dark
               ? Colors.green[700]
               : Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (e) {
-      // 關閉載入中
-      if (context.mounted) {
-        Navigator.pop(context);
-      }
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('清空資料失敗：${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    
-    return Padding(
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             '資料管理',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 24),
           Card(
-            color: Theme.of(context).brightness == Brightness.dark
-                ? Colors.red.withOpacity(0.2)
-                : Colors.red[50],
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.warning, 
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? Colors.red[300]
-                            : Colors.red[700],
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '資料管理',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? Colors.red[300]
-                              : Colors.red[700],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.delete_forever),
-                      label: const Text('清空所有資料'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      onPressed: () => _clearAllData(context),
+                  Text(
+                    '自動歸零設定',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '此操作將刪除所有批次、掃描記錄和匯出檔案',
+                    '每天00:00（台灣時區）自動清除對應的記錄',
                     style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.red[700],
+                      fontSize: 14,
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                     ),
+                  ),
+                  const SizedBox(height: 16),
+                  SwitchListTile(
+                    title: const Text('一般掃描記錄自動歸零'),
+                    subtitle: const Text('自動清除7天前的已完成批次'),
+                    value: _autoCleanupScanRecords,
+                    onChanged: (value) {
+                      setState(() {
+                        _autoCleanupScanRecords = value;
+                      });
+                      _saveSettings();
+                    },
+                  ),
+                  const Divider(),
+                  SwitchListTile(
+                    title: const Text('非清單內記錄自動歸零'),
+                    subtitle: const Text('自動清除非清單內出貨記錄'),
+                    value: _autoCleanupOffListRecords,
+                    onChanged: (value) {
+                      setState(() {
+                        _autoCleanupOffListRecords = value;
+                      });
+                      _saveSettings();
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '非清單內出貨紀錄模式',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SwitchListTile(
+                    title: const Text('預設開啟'),
+                    subtitle: const Text('進入總出貨模式時預設開啟'),
+                    value: _offListRecordModeDefault,
+                    onChanged: (value) {
+                      setState(() {
+                        _offListRecordModeDefault = value;
+                      });
+                      _saveSettings();
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          // 原有的資料管理內容
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '資料清理',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ListTile(
+                    leading: const Icon(Icons.delete_forever),
+                    title: const Text('刪除所有已完成批次'),
+                    subtitle: const Text('刪除所有已完成的批次及其掃描記錄'),
+                    onTap: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('確認刪除'),
+                          content: const Text('確定要刪除所有已完成的批次嗎？此操作無法復原。'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('取消'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              style: TextButton.styleFrom(foregroundColor: Colors.red),
+                              child: const Text('確定刪除'),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirmed == true && context.mounted) {
+                        try {
+                          final batches = await DatabaseService.getAllBatches();
+                          int deletedCount = 0;
+                          for (final batch in batches) {
+                            if (batch.isFinished) {
+                              await DatabaseService.deleteBatch(batch.id);
+                              deletedCount++;
+                            }
+                          }
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('已刪除 $deletedCount 個已完成批次'),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('刪除失敗：$e'),
+                                backgroundColor: Colors.red,
+                                duration: const Duration(seconds: 3),
+                              ),
+                            );
+                          }
+                        }
+                      }
+                    },
+                  ),
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(Icons.storage),
+                    title: const Text('資料庫資訊'),
+                    subtitle: const Text('查看資料庫統計資訊'),
+                    onTap: () async {
+                      try {
+                        final batches = await DatabaseService.getAllBatches();
+                        final allItems = <ScanItem>[];
+                        for (final batch in batches) {
+                          final items = await DatabaseService.getScanItemsByBatch(batch.id);
+                          allItems.addAll(items);
+                        }
+                        if (context.mounted) {
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('資料庫資訊'),
+                              content: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('批次數：${batches.length}'),
+                                  Text('已完成：${batches.where((b) => b.isFinished).length}'),
+                                  Text('未完成：${batches.where((b) => !b.isFinished).length}'),
+                                  const SizedBox(height: 8),
+                                  Text('掃描記錄數：${allItems.length}'),
+                                  Text('已掃描：${allItems.where((i) => i.scanStatus == ScanStatus.scanned).length}'),
+                                  Text('待掃描：${allItems.where((i) => i.scanStatus == ScanStatus.pending).length}'),
+                                ],
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('關閉'),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('取得資料庫資訊失敗：$e'),
+                              backgroundColor: Colors.red,
+                              duration: const Duration(seconds: 3),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(Icons.delete_forever, color: Colors.red),
+                    title: const Text('清空所有資料'),
+                    subtitle: const Text('刪除所有批次、掃描記錄和匯出檔案'),
+                    onTap: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('確認清空資料'),
+                          content: const Text(
+                            '此操作將刪除所有批次資料、掃描記錄和匯出檔案。\n\n此操作無法復原，確定要繼續嗎？',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('取消'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              style: TextButton.styleFrom(foregroundColor: Colors.red),
+                              child: const Text('確定'),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirmed != true) return;
+
+                      // 顯示載入中
+                      if (context.mounted) {
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (context) => const Center(child: CircularProgressIndicator()),
+                        );
+                      }
+
+                      try {
+                        // 清空資料庫
+                        final batches = await DatabaseService.getAllBatches();
+                        for (final batch in batches) {
+                          await DatabaseService.deleteBatch(batch.id);
+                        }
+
+                        // 刪除匯出檔案
+                        final appDocDir = await getApplicationDocumentsDirectory();
+                        final reportsDir = Directory('${appDocDir.path}/reports');
+                        if (await reportsDir.exists()) {
+                          await reportsDir.delete(recursive: true);
+                        }
+
+                        // 關閉載入中
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                        }
+
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('所有資料已清空'),
+                              backgroundColor: Theme.of(context).brightness == Brightness.dark
+                                ? Colors.green[700]
+                                : Colors.green,
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        // 關閉載入中
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                        }
+
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('清空資料失敗：${e.toString()}'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
+                    },
                   ),
                 ],
               ),

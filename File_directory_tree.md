@@ -63,8 +63,8 @@ lib/
 - `total_shipment_scan_page.dart` - 總出貨掃描頁面
 
 ### services/ - 服務層
-- `app_settings_service.dart` - 應用程式設定服務
-- `cleanup_service.dart` - 資料清理服務（7 天清理批次，10 天清理匯出檔案）
+- `app_settings_service.dart` - 應用程式設定服務（包含自動歸零設定、非清單模式預設值等）
+- `cleanup_service.dart` - 資料清理服務（7 天清理批次，10 天清理匯出檔案，自動歸零功能）
 - `database_service.dart` - 資料庫服務
 - `export_service.dart` - 匯出服務
 - `google_sheets_service.dart` - Google Sheets 服務

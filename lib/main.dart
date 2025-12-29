@@ -40,6 +40,14 @@ void main() async {
     debugPrint('清理過期匯出檔案時發生錯誤：$e');
   }
 
+  // App 啟動時檢查並清除非清單內記錄（每天00:00台灣時區自動清除）
+  try {
+    await CleanupService.cleanupOffListRecordsIfNeeded();
+  } catch (e) {
+    // 忽略清理錯誤，不影響 App 啟動
+    debugPrint('清除非清單內記錄時發生錯誤：$e');
+  }
+
   // 初始化時區設定
   try {
     await TimezoneHelper.initialize();
