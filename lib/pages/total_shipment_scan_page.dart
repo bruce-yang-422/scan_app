@@ -603,43 +603,18 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
                   '已匯出總出貨結果（匯總所有批次）',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                if (txtPath.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  const Text(
-                    '檔案已匯出至：',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    txtPath,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                    ),
+                  child: const Text(
+                    '💡 提示：請使用「分享」功能將檔案傳送到其他應用程式',
+                    style: TextStyle(fontSize: 11, color: Colors.blue),
                   ),
-                  if (jsonPath.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      jsonPath,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text(
-                      '💡 提示：檔案儲存在應用程式私有目錄，無法透過檔案管理器直接存取。請使用下方的「分享」功能將檔案傳送到其他應用程式（如 LINE、Email、雲端硬碟等）。',
-                      style: TextStyle(fontSize: 11, color: Colors.blue),
-                    ),
-                  ),
-                ],
+                ),
                 const SizedBox(height: 16),
                 const Text(
                   '請選擇操作：',

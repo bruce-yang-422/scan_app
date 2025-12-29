@@ -504,20 +504,6 @@ class _BatchScanPageState extends State<BatchScanPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '檔案已匯出至：',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  files.txtPath,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  files.jsonPath,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(8),
@@ -526,7 +512,7 @@ class _BatchScanPageState extends State<BatchScanPage> {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: const Text(
-                    '💡 提示：檔案儲存在應用程式私有目錄，無法透過檔案管理器直接存取。請使用下方的「分享」功能將檔案傳送到其他應用程式（如 LINE、Email、雲端硬碟等）。',
+                    '💡 提示：請使用「分享」功能將檔案傳送到其他應用程式',
                     style: TextStyle(fontSize: 11, color: Colors.blue),
                   ),
                 ),
