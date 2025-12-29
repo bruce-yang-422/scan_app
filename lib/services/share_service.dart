@@ -25,9 +25,9 @@ class ShareService {
       
       // 使用 try-catch 包裝，避免 device_info 插件錯誤影響分享功能
       try {
+        // 不設置 text 參數，確保文件能正確附加（而不是顯示文本）
         await Share.shareXFiles(
           files,
-          text: '掃描結果匯出',
           subject: '出貨掃描結果',
         );
       } catch (pluginError) {
@@ -37,7 +37,6 @@ class ShareService {
           // 降級處理：只分享第一個檔案
           await Share.shareXFiles(
             [XFile(txtPath)],
-            text: '掃描結果匯出',
             subject: '出貨掃描結果',
           );
         } else {

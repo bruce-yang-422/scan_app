@@ -471,10 +471,24 @@ class _BatchScanPageState extends State<BatchScanPage> {
   Future<void> _showExportSuccessDialog(ExportFiles files) async {
     // 讀取 TXT 內容用於複製
     String txtContent = '';
+    String lineContent = '';
     try {
       final txtFile = File(files.txtPath);
       if (await txtFile.exists()) {
         txtContent = await txtFile.readAsString(encoding: utf8);
+      }
+      
+      // 重新生成 ExportResult 以產生 LINE 版本
+      try {
+        final batch = await DatabaseService.getBatch(widget.batchId);
+        if (batch != null) {
+          final items = await DatabaseService.getScanItemsByBatch(widget.batchId);
+          final exportResult = await ExportService.buildExportResult(batch, items);
+          lineContent = ExportService.generateLineText(exportResult);
+        }
+      } catch (e) {
+        // 如果無法生成 LINE 版本，使用 TXT 版本
+        lineContent = txtContent;
       }
     } catch (e) {
       // 忽略讀取錯誤
@@ -513,7 +527,28 @@ class _BatchScanPageState extends State<BatchScanPage> {
             ),
           ),
           actions: [
-            // 複製 TXT 內容
+            // 複製 LINE 版本（簡潔格式）
+            if (lineContent.isNotEmpty)
+              TextButton.icon(
+                icon: const Icon(Icons.content_copy, size: 18),
+                label: const Text('複製 LINE 版本'),
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: lineContent));
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('已複製 LINE 版本到剪貼簿'),
+                        backgroundColor: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.green[700]
+                            : Colors.green,
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                },
+              ),
+            // 複製 TXT 內容（完整格式）
             if (txtContent.isNotEmpty)
               TextButton.icon(
                 icon: const Icon(Icons.copy, size: 18),
@@ -524,10 +559,10 @@ class _BatchScanPageState extends State<BatchScanPage> {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: const Text('已複製到剪貼簿，可貼到 LINE'),
+                        content: const Text('已複製 TXT 內容到剪貼簿'),
                         backgroundColor: Theme.of(context).brightness == Brightness.dark
-                ? Colors.green[700]
-                : Colors.green,
+                            ? Colors.green[700]
+                            : Colors.green,
                         duration: const Duration(seconds: 2),
                       ),
                     );

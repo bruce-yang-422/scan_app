@@ -138,6 +138,21 @@ class GoogleSheetsService {
           continue;
         }
 
+        // 檢查日期是否超過7天（不匯入超過7天的資料）
+        try {
+          final orderDate = DateTime.parse(normalizedDate);
+          final today = DateTime.now();
+          final daysDiff = today.difference(orderDate).inDays;
+          if (daysDiff > 7) {
+            skippedCount++;
+            continue; // 跳過超過7天的資料
+          }
+        } catch (e) {
+          // 日期解析失敗，跳過此筆資料
+          skippedCount++;
+          continue;
+        }
+
         // 檢查重複（基於 orderDate + logisticsNo）
         final uniqueKey = '$normalizedDate|$logisticsNo';
         if (seenKeys.contains(uniqueKey)) {
@@ -307,6 +322,21 @@ class GoogleSheetsService {
         String normalizedDate;
         try {
           normalizedDate = DateParser.normalizeDate(orderDateRaw);
+        } catch (e) {
+          // 日期解析失敗，跳過此筆資料
+          skippedCount++;
+          continue;
+        }
+
+        // 檢查日期是否超過7天（不匯入超過7天的資料）
+        try {
+          final orderDate = DateTime.parse(normalizedDate);
+          final today = DateTime.now();
+          final daysDiff = today.difference(orderDate).inDays;
+          if (daysDiff > 7) {
+            skippedCount++;
+            continue; // 跳過超過7天的資料
+          }
         } catch (e) {
           // 日期解析失敗，跳過此筆資料
           skippedCount++;

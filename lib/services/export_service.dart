@@ -259,7 +259,22 @@ class ExportService {
     );
   }
 
-  // 建立匯出結果
+  // 建立匯出結果（公開方法，用於生成 LINE 版本）
+  static Future<ExportResult> buildExportResult(Batch batch, List<ScanItem> items) async {
+    return await _buildExportResult(batch, items);
+  }
+
+  // 建立多批次匯出結果（公開方法，用於生成 LINE 版本）
+  static Future<ExportResult> buildMultiBatchExportResult(
+    List<Batch> batches,
+    List<ScanItem> allItems,
+    List<String> storeNames,
+    List<String> orderDates,
+  ) async {
+    return await _buildMultiBatchExportResult(batches, allItems, storeNames, orderDates);
+  }
+
+  // 建立匯出結果（內部方法）
   static Future<ExportResult> _buildExportResult(Batch batch, List<ScanItem> items) async {
     // 使用本地時間（但標示為本地時間）
     final scanFinishTime = await TimezoneHelper.formatLocalNowIso();
@@ -316,14 +331,24 @@ class ExportService {
     );
   }
 
-  // 產生 TXT 內容
+  // 產生 TXT 內容（用於分享）
   static String _generateTxt(ExportResult result) {
+    return _generateTextContent(result, lineWidth: 40);
+  }
+
+  // 產生 LINE 複製/貼上版本（簡潔格式，不列出掃描成功清單）
+  static String generateLineText(ExportResult result) {
+    return _generateLineTextContent(result, lineWidth: 20);
+  }
+
+  // 產生 LINE 文字內容（不列出掃描成功清單）
+  static String _generateLineTextContent(ExportResult result, {required int lineWidth}) {
     final buffer = StringBuffer();
     
     // 標題
-    buffer.writeln('=' * 60);
+    buffer.writeln('=' * lineWidth);
     buffer.writeln('掃描結果報告');
-    buffer.writeln('=' * 60);
+    buffer.writeln('=' * lineWidth);
     buffer.writeln();
 
     // 基本資訊
@@ -340,9 +365,9 @@ class ExportService {
     buffer.writeln();
 
     // 統計摘要
-    buffer.writeln('-' * 60);
+    buffer.writeln('-' * lineWidth);
     buffer.writeln('統計摘要');
-    buffer.writeln('-' * 60);
+    buffer.writeln('-' * lineWidth);
     buffer.writeln('總筆數：${result.summary.total}');
     buffer.writeln('已掃描：${result.summary.scanned}');
     buffer.writeln('未掃描：${result.summary.notScanned}');
@@ -352,9 +377,9 @@ class ExportService {
     // 未掃描清單（重點）
     final notScannedItems = result.items.where((item) => item.scanStatus == 'PENDING').toList();
     if (notScannedItems.isNotEmpty) {
-      buffer.writeln('-' * 60);
+      buffer.writeln('-' * lineWidth);
       buffer.writeln('未掃描清單（${notScannedItems.length} 筆）');
-      buffer.writeln('-' * 60);
+      buffer.writeln('-' * lineWidth);
       for (final item in notScannedItems) {
         buffer.writeln('訂單編號：${item.orderNo}');
         buffer.writeln('物流單號：${item.logisticsNo}');
@@ -374,9 +399,94 @@ class ExportService {
       item.scanStatus == 'DUPLICATE'
     ).toList();
     if (errorItems.isNotEmpty) {
-      buffer.writeln('-' * 60);
+      buffer.writeln('-' * lineWidth);
       buffer.writeln('錯誤／重複明細（${errorItems.length} 筆）');
-      buffer.writeln('-' * 60);
+      buffer.writeln('-' * lineWidth);
+      for (final item in errorItems) {
+        buffer.writeln('訂單編號：${item.orderNo}');
+        buffer.writeln('物流單號：${item.logisticsNo}');
+        buffer.writeln('狀態：${_getStatusDisplayName(item.scanStatus)}');
+        if (item.scanTime != null) {
+          buffer.writeln('掃描時間：${_formatDateTimeWithTimezone(item.scanTime!)}');
+        }
+        if (item.scanNote != null) {
+          buffer.writeln('備註：${item.scanNote}');
+        }
+        buffer.writeln();
+      }
+    }
+
+    // LINE 版本不列出已掃描成功的清單，只顯示統計摘要中的數量
+
+    buffer.writeln();
+    buffer.writeln('=' * lineWidth);
+    buffer.writeln('報告結束');
+    buffer.writeln('=' * lineWidth);
+
+    return buffer.toString();
+  }
+
+  // 產生文字內容（通用方法）
+  static String _generateTextContent(ExportResult result, {required int lineWidth}) {
+    final buffer = StringBuffer();
+    
+    // 標題
+    buffer.writeln('=' * lineWidth);
+    buffer.writeln('掃描結果報告');
+    buffer.writeln('=' * lineWidth);
+    buffer.writeln();
+
+    // 基本資訊
+    buffer.writeln('店名：${result.storeName}');
+    buffer.writeln('訂單日期：${result.orderDate}');
+    // scanFinishTime 已經是台灣時間格式（yyyy-MM-dd HH:mm:ss），直接使用
+    buffer.writeln('掃描完成時間：${result.scanFinishTime}');
+    if (result.scannerName != null && result.scannerName!.isNotEmpty) {
+      buffer.writeln('掃描人員姓名：${result.scannerName}');
+    }
+    if (result.scannerId != null && result.scannerId!.isNotEmpty) {
+      buffer.writeln('掃描人員編號：${result.scannerId}');
+    }
+    buffer.writeln();
+
+    // 統計摘要
+    buffer.writeln('-' * lineWidth);
+    buffer.writeln('統計摘要');
+    buffer.writeln('-' * lineWidth);
+    buffer.writeln('總筆數：${result.summary.total}');
+    buffer.writeln('已掃描：${result.summary.scanned}');
+    buffer.writeln('未掃描：${result.summary.notScanned}');
+    buffer.writeln('錯誤（重複/無效）：${result.summary.error}');
+    buffer.writeln();
+
+    // 未掃描清單（重點）
+    final notScannedItems = result.items.where((item) => item.scanStatus == 'PENDING').toList();
+    if (notScannedItems.isNotEmpty) {
+      buffer.writeln('-' * lineWidth);
+      buffer.writeln('未掃描清單（${notScannedItems.length} 筆）');
+      buffer.writeln('-' * lineWidth);
+      for (final item in notScannedItems) {
+        buffer.writeln('訂單編號：${item.orderNo}');
+        buffer.writeln('物流單號：${item.logisticsNo}');
+        if (item.logisticsCompany != null) {
+          buffer.writeln('物流公司：${item.logisticsCompany}');
+        }
+        if (item.sheetNote != null) {
+          buffer.writeln('備註：${item.sheetNote}');
+        }
+        buffer.writeln();
+      }
+    }
+
+    // 錯誤／重複明細
+    // 注意：根據規格，INVALID 不會寫入資料庫，所以這裡只會有 DUPLICATE
+    final errorItems = result.items.where((item) => 
+      item.scanStatus == 'DUPLICATE'
+    ).toList();
+    if (errorItems.isNotEmpty) {
+      buffer.writeln('-' * lineWidth);
+      buffer.writeln('錯誤／重複明細（${errorItems.length} 筆）');
+      buffer.writeln('-' * lineWidth);
       for (final item in errorItems) {
         buffer.writeln('訂單編號：${item.orderNo}');
         buffer.writeln('物流單號：${item.logisticsNo}');
@@ -394,9 +504,9 @@ class ExportService {
     // 已掃描統計（簡化顯示，不列出明細）
     final scannedItems = result.items.where((item) => item.scanStatus == 'SCANNED').toList();
     if (scannedItems.isNotEmpty) {
-      buffer.writeln('-' * 60);
+      buffer.writeln('-' * lineWidth);
       buffer.writeln('已掃描統計');
-      buffer.writeln('-' * 60);
+      buffer.writeln('-' * lineWidth);
       buffer.writeln('成功：${scannedItems.length} 筆');
       buffer.writeln('成功的包含：');
       buffer.writeln('  日期：${result.orderDate}');
@@ -406,9 +516,9 @@ class ExportService {
     }
 
     buffer.writeln();
-    buffer.writeln('=' * 60);
+    buffer.writeln('=' * lineWidth);
     buffer.writeln('報告結束');
-    buffer.writeln('=' * 60);
+    buffer.writeln('=' * lineWidth);
 
     return buffer.toString();
   }
