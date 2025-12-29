@@ -34,6 +34,8 @@
 - ✅ **Batch 管理**：依來源名稱和訂單日期分組管理（來源可自由設定，如分店、供應商等）
 - ✅ **狀態追蹤**：PENDING → SCANNED → DUPLICATE / INVALID
 - ✅ **自動清理**：App 啟動時自動清理 7 天前的已完成批次
+- ✅ **匯出檔案自動清理**：App 啟動時自動清理超過 10 天的匯出檔案
+- ✅ **網路狀態檢查**：App 啟動時自動檢查網路連線，無網路時顯示警告
 - ✅ **結果匯出**：支援 TXT（人可讀）和 JSON（機器可用）格式
 - ✅ **中斷恢復**：App 被殺掉後可恢復掃描狀態
 - ✅ **總出貨模式**：支援跨多個來源同時掃描
@@ -140,6 +142,9 @@
   - 掃描成功聲音（逼聲）：開關控制
 - **NTP 時間同步**：系統時間從國際標準時間伺服器同步
 - **設定介面**：右上角齒輪圖示，點擊後顯示半頁設定面板
+- **自動更新機制**：
+  - 匯入或更新批次後，批次列表自動刷新（無需手動下拉更新）
+  - 設定更改後立即生效（顯示模式無需重啟 App）
 
 ---
 
@@ -160,6 +165,7 @@
 - **ntp**：NTP 時間同步
 - **shared_preferences**：設定儲存
 - **package_info_plus**：應用程式資訊
+- **connectivity_plus**：網路狀態檢查
 
 ### 資料庫結構（SQLite）
 
@@ -269,6 +275,14 @@ CleanupService.cleanupOldBatches()
 刪除相關 scan_items
   ↓
 刪除 batches
+  ↓
+CleanupService.cleanupOldExportFiles()
+  ↓
+檢查匯出檔案修改時間
+  ↓
+刪除超過 10 天的匯出檔案
+  ↓
+清理空目錄
 ```
 
 ---
@@ -293,10 +307,11 @@ lib/
 │   └── total_shipment_scan_page.dart # 總出貨掃描頁面
 ├── services/
 │   ├── app_settings_service.dart     # 應用程式設定服務
-│   ├── cleanup_service.dart          # 清理服務（7 天清理）
+│   ├── cleanup_service.dart          # 清理服務（7 天清理批次，10 天清理檔案）
 │   ├── database_service.dart         # SQLite 資料庫服務
 │   ├── export_service.dart           # 匯出服務（TXT/JSON）
 │   ├── google_sheets_service.dart    # Google Sheets 匯入服務
+│   ├── network_service.dart          # 網路狀態檢查服務
 │   ├── ntp_service.dart              # NTP 時間同步服務
 │   ├── scan_service.dart             # 掃描比對服務
 │   ├── share_service.dart            # 分享服務
@@ -461,6 +476,11 @@ lib/
 - SQLite 中的 Batch 僅保留 7 天
 - 清理條件：`order_date < today - 7 days` 且 `finished_at IS NOT NULL`
 - 清理時機：App 啟動時自動執行
+- **匯出檔案保留規則**：
+  - 預設保留天數：10 天
+  - 超過保留天數的匯出檔案會自動刪除
+  - 空目錄會自動清理
+  - 清理時機：App 啟動時自動執行
 
 ### 同一 Batch 重新匯入的覆蓋策略
 
@@ -551,8 +571,13 @@ scan_result_{store_name}_{yyyyMMdd_HHmm}.{ext}
 
 - 所有資料儲存在 App 本地（SQLite）
 - 不連線到外部伺服器（除了下載 Google Sheets）
-- 匯出檔案儲存在 App Documents 目錄
+- 匯出檔案儲存在 App Documents 目錄（應用程式私有目錄）
 - 支援離線使用（匯入後無需網路）
+- **網路狀態檢查**：
+  - App 啟動時自動檢查網路連線狀態
+  - 如果沒有偵測到手機網路或 WiFi，會立即顯示警告對話框
+  - 必須點擊「確認」按鈕才能繼續使用 App
+  - 部分功能（如匯入 Google Sheets）需要網路連線
 
 ## ⏰ 時區管理
 
@@ -581,7 +606,9 @@ scan_result_{store_name}_{yyyyMMdd_HHmm}.{ext}
 2. **離線可用**：匯入後無需網路即可使用
 3. **中斷恢復**：App 被殺掉後可恢復掃描狀態
 4. **資料可匯出**：支援多種格式匯出
-5. **自動清理**：避免資料無限累積
+5. **自動清理**：避免資料無限累積（批次 7 天，檔案 10 天）
+6. **自動更新**：匯入後自動刷新列表，設定更改立即生效
+7. **網路檢查**：啟動時檢查網路狀態，無網路時提醒用戶
 
 ---
 
