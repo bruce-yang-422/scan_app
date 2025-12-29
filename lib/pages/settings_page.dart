@@ -377,9 +377,11 @@ class _ScanSettingsPageState extends State<ScanSettingsPage> {
   int _statusDelaySeconds = 2;
   bool _vibrationEnabled = true;
   bool _soundEnabled = true;
+  int _cameraDuplicateIntervalSeconds = 10;
   int _originalStatusDelaySeconds = 2;
   bool _originalVibrationEnabled = true;
   bool _originalSoundEnabled = true;
+  int _originalCameraDuplicateIntervalSeconds = 10;
   bool _hasChanges = false;
 
   @override
@@ -392,13 +394,16 @@ class _ScanSettingsPageState extends State<ScanSettingsPage> {
     final statusDelaySeconds = await AppSettingsService.getStatusDelaySeconds();
     final vibrationEnabled = await AppSettingsService.isVibrationEnabled();
     final soundEnabled = await AppSettingsService.isSoundEnabled();
+    final cameraDuplicateIntervalSeconds = await AppSettingsService.getCameraDuplicateIntervalSeconds();
     setState(() {
       _statusDelaySeconds = statusDelaySeconds;
       _vibrationEnabled = vibrationEnabled;
       _soundEnabled = soundEnabled;
+      _cameraDuplicateIntervalSeconds = cameraDuplicateIntervalSeconds;
       _originalStatusDelaySeconds = statusDelaySeconds;
       _originalVibrationEnabled = vibrationEnabled;
       _originalSoundEnabled = soundEnabled;
+      _originalCameraDuplicateIntervalSeconds = cameraDuplicateIntervalSeconds;
       _hasChanges = false;
     });
   }
@@ -407,7 +412,8 @@ class _ScanSettingsPageState extends State<ScanSettingsPage> {
     setState(() {
       _hasChanges = _statusDelaySeconds != _originalStatusDelaySeconds ||
           _vibrationEnabled != _originalVibrationEnabled ||
-          _soundEnabled != _originalSoundEnabled;
+          _soundEnabled != _originalSoundEnabled ||
+          _cameraDuplicateIntervalSeconds != _originalCameraDuplicateIntervalSeconds;
     });
   }
 
@@ -415,10 +421,12 @@ class _ScanSettingsPageState extends State<ScanSettingsPage> {
     await AppSettingsService.setStatusDelaySeconds(_statusDelaySeconds);
     await AppSettingsService.setVibrationEnabled(_vibrationEnabled);
     await AppSettingsService.setSoundEnabled(_soundEnabled);
+    await AppSettingsService.setCameraDuplicateIntervalSeconds(_cameraDuplicateIntervalSeconds);
     setState(() {
       _originalStatusDelaySeconds = _statusDelaySeconds;
       _originalVibrationEnabled = _vibrationEnabled;
       _originalSoundEnabled = _soundEnabled;
+      _originalCameraDuplicateIntervalSeconds = _cameraDuplicateIntervalSeconds;
       _hasChanges = false;
     });
     
@@ -525,6 +533,35 @@ class _ScanSettingsPageState extends State<ScanSettingsPage> {
                       onChanged: (value) {
                         setState(() {
                           _soundEnabled = value;
+                          _checkChanges();
+                        });
+                      },
+                    ),
+                    const Divider(),
+                    Text(
+                      '相機掃描重複判斷間隔：$_cameraDuplicateIntervalSeconds 秒',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '在設定時間內重複掃描不算重複，超過時間間隔後再次掃描才算重複',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                    ),
+                    Slider(
+                      value: _cameraDuplicateIntervalSeconds.toDouble(),
+                      min: 5,
+                      max: 60,
+                      divisions: 11, // (60-5)/5 = 11
+                      label: '$_cameraDuplicateIntervalSeconds 秒',
+                      onChanged: (value) {
+                        setState(() {
+                          _cameraDuplicateIntervalSeconds = value.toInt();
                           _checkChanges();
                         });
                       },

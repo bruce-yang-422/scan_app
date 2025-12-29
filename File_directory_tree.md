@@ -36,6 +36,7 @@ lib/
 │   └── app_theme.dart
 │
 └── utils/
+    ├── barcode_validator.dart
     ├── date_parser.dart
     ├── scan_status_helper.dart
     └── timezone_helper.dart
@@ -78,6 +79,7 @@ lib/
 - `app_theme.dart` - 應用程式主題定義（淺色/深色）
 
 ### utils/ - 工具函數
+- `barcode_validator.dart` - 條碼驗證工具（蝦皮物流格式驗證）
 - `date_parser.dart` - 日期解析工具
 - `scan_status_helper.dart` - 掃描狀態輔助函數
 - `timezone_helper.dart` - 時區輔助函數

@@ -24,11 +24,19 @@ class AppSettingsService {
 
   // 顯示模式：'auto', 'dark', 'light'
   static const String _keyThemeMode = 'theme_mode';
-  static const String _defaultThemeMode = 'auto'; // 預設自動
+  static const String _defaultThemeMode = 'auto'; // 預設自動（跟隨系統）
 
   // 匯出檔案保留天數
   static const String _keyExportFileRetentionDays = 'export_file_retention_days';
   static const int _defaultExportFileRetentionDays = 10; // 預設保留 10 天
+
+  // 相機掃描重複判斷間隔（秒）- 用於判斷是否為重複掃描
+  static const String _keyCameraDuplicateIntervalSeconds = 'camera_duplicate_interval_seconds';
+  static const int _defaultCameraDuplicateIntervalSeconds = 10; // 預設 10 秒
+
+  // 非清單內出貨紀錄模式開關
+  static const String _keyOffListRecordModeEnabled = 'off_list_record_mode_enabled';
+  static const bool _defaultOffListRecordModeEnabled = false; // 預設關閉
 
   // 取得狀態顯示時間（秒）- 所有狀態共用
   static Future<int> getStatusDelaySeconds() async {
@@ -124,6 +132,37 @@ class AppSettingsService {
   static Future<void> setExportFileRetentionDays(int days) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_keyExportFileRetentionDays, days);
+  }
+
+  // 取得相機掃描重複判斷間隔（秒）
+  static Future<int> getCameraDuplicateIntervalSeconds() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getInt(_keyCameraDuplicateIntervalSeconds);
+    // 確保值在有效範圍內（5-60秒）
+    if (value != null && value >= 5 && value <= 60) {
+      return value;
+    }
+    return _defaultCameraDuplicateIntervalSeconds;
+  }
+
+  // 設定相機掃描重複判斷間隔（秒）
+  static Future<void> setCameraDuplicateIntervalSeconds(int seconds) async {
+    // 確保值在有效範圍內（5-60秒）
+    final clampedSeconds = seconds.clamp(5, 60);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyCameraDuplicateIntervalSeconds, clampedSeconds);
+  }
+
+  // 取得非清單內出貨紀錄模式開關狀態
+  static Future<bool> isOffListRecordModeEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyOffListRecordModeEnabled) ?? _defaultOffListRecordModeEnabled;
+  }
+
+  // 設定非清單內出貨紀錄模式開關
+  static Future<void> setOffListRecordModeEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyOffListRecordModeEnabled, enabled);
   }
 }
 

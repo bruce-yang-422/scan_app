@@ -2,6 +2,7 @@ import '../models/scan_item.dart';
 import '../models/scan_status.dart';
 import 'database_service.dart';
 import '../utils/timezone_helper.dart';
+import 'app_settings_service.dart';
 
 // 掃描服務
 class ScanService {
@@ -61,14 +62,70 @@ class ScanService {
         message = '掃描成功';
         break;
       case ScanStatus.scanned:
-        // SCANNED → DUPLICATE
-        newStatus = ScanStatus.duplicate;
-        message = '重複掃描';
+        // SCANNED：檢查是否超過重複判斷間隔
+        if (item.scanTime != null) {
+          try {
+            // 解析上次掃描時間（UTC）
+            final lastScanTime = DateTime.parse(item.scanTime!);
+            final now = await TimezoneHelper.getUtcNow();
+            final timeDiff = now.difference(lastScanTime).inSeconds;
+            
+            // 取得相機掃描重複判斷間隔設定
+            final duplicateInterval = await AppSettingsService.getCameraDuplicateIntervalSeconds();
+            
+            // 如果在時間間隔內，不算重複，更新掃描時間
+            if (timeDiff < duplicateInterval) {
+              newStatus = ScanStatus.scanned;
+              scanTime = now.toIso8601String();
+              message = '掃描成功';
+            } else {
+              // 超過時間間隔，判定為重複
+              newStatus = ScanStatus.duplicate;
+              message = '重複掃描';
+            }
+          } catch (e) {
+            // 時間解析失敗，預設判定為重複
+            newStatus = ScanStatus.duplicate;
+            message = '重複掃描';
+          }
+        } else {
+          // 沒有上次掃描時間，預設判定為重複（不應該發生）
+          newStatus = ScanStatus.duplicate;
+          message = '重複掃描';
+        }
         break;
       case ScanStatus.duplicate:
-        // 已經是 DUPLICATE，保持不變
-        newStatus = ScanStatus.duplicate;
-        message = '重複掃描';
+        // 已經是 DUPLICATE，檢查是否在時間間隔內
+        if (item.scanTime != null) {
+          try {
+            // 解析上次掃描時間（UTC）
+            final lastScanTime = DateTime.parse(item.scanTime!);
+            final now = await TimezoneHelper.getUtcNow();
+            final timeDiff = now.difference(lastScanTime).inSeconds;
+            
+            // 取得相機掃描重複判斷間隔設定
+            final duplicateInterval = await AppSettingsService.getCameraDuplicateIntervalSeconds();
+            
+            // 如果在時間間隔內，不算重複，更新掃描時間
+            if (timeDiff < duplicateInterval) {
+              newStatus = ScanStatus.scanned;
+              scanTime = now.toIso8601String();
+              message = '掃描成功';
+            } else {
+              // 超過時間間隔，保持為重複
+              newStatus = ScanStatus.duplicate;
+              message = '重複掃描';
+            }
+          } catch (e) {
+            // 時間解析失敗，保持為重複
+            newStatus = ScanStatus.duplicate;
+            message = '重複掃描';
+          }
+        } else {
+          // 沒有上次掃描時間，保持為重複
+          newStatus = ScanStatus.duplicate;
+          message = '重複掃描';
+        }
         break;
       case ScanStatus.invalid:
         // 不應該發生，但處理一下

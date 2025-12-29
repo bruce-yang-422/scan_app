@@ -60,6 +60,7 @@ class ScanApp extends StatefulWidget {
 }
 
 class _ScanAppState extends State<ScanApp> {
+  // 預設主題模式：跟隨系統（ThemeMode.system）
   ThemeMode _themeMode = ThemeMode.system;
 
   @override
@@ -82,6 +83,7 @@ class _ScanAppState extends State<ScanApp> {
               break;
             case 'auto':
             default:
+              // 預設跟隨系統主題
               _themeMode = ThemeMode.system;
               break;
           }
@@ -89,11 +91,11 @@ class _ScanAppState extends State<ScanApp> {
       }
     } catch (e) {
       debugPrint('載入主題模式時發生錯誤：$e');
-      // 使用預設主題模式
-      if (mounted) {
-        setState(() {
+      // 使用預設主題模式（跟隨系統）
+    if (mounted) {
+      setState(() {
           _themeMode = ThemeMode.system;
-        });
+      });
       }
     }
   }

@@ -11,6 +11,7 @@ import '../services/export_service.dart';
 import '../services/share_service.dart';
 import '../services/app_settings_service.dart';
 import '../utils/timezone_helper.dart';
+import '../utils/barcode_validator.dart';
 import 'package:vibration/vibration.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/services.dart';
@@ -42,10 +43,12 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
   Timer? _statusTimer; // 狀態顯示計時器
   final AudioPlayer _audioPlayer = AudioPlayer(); // 音效播放器
   Timer? _scannerInputTimer; // 掃描槍輸入計時器（用於自動提交）
+  bool _offListRecordModeEnabled = false; // 非清單內出貨紀錄模式開關
 
   @override
   void initState() {
     super.initState();
+    _loadOffListRecordMode();
     _loadItems();
     // 掃描槍模式：自動聚焦
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -73,6 +76,33 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
     _stopCamera(); // 使用統一的停止方法
     _audioPlayer.dispose();
     super.dispose();
+  }
+
+  // 載入非清單內出貨紀錄模式開關狀態
+  Future<void> _loadOffListRecordMode() async {
+    final enabled = await AppSettingsService.isOffListRecordModeEnabled();
+    if (mounted) {
+      setState(() {
+        _offListRecordModeEnabled = enabled;
+      });
+    }
+  }
+
+  // 切換非清單內出貨紀錄模式
+  Future<void> _toggleOffListRecordMode() async {
+    final newValue = !_offListRecordModeEnabled;
+    await AppSettingsService.setOffListRecordModeEnabled(newValue);
+    if (mounted) {
+      setState(() {
+        _offListRecordModeEnabled = newValue;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(newValue ? '已開啟非清單內出貨紀錄模式' : '已關閉非清單內出貨紀錄模式'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Future<void> _loadItems() async {
@@ -154,6 +184,73 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
       final result = await ScanService.scanLogisticsNoAcrossBatches(
         logisticsNo.trim(),
       );
+
+      // 如果開啟非清單內出貨紀錄模式，且掃描結果為無此資料，檢查是否符合格式並記錄
+      if (_offListRecordModeEnabled && result.status == ScanStatus.invalid) {
+        final trimmedLogisticsNo = logisticsNo.trim();
+        // 檢查是否符合蝦皮物流格式（15字元，開頭"TW"）
+        if (BarcodeValidator.isValidShopeeLogistics(trimmedLogisticsNo)) {
+          try {
+            await DatabaseService.insertOffListRecord(trimmedLogisticsNo);
+            // 更新狀態訊息為已記錄
+            setState(() {
+              _lastScanStatus = ScanStatus.scanned; // 使用scanned狀態來表示已記錄
+              _lastScanMessage = '已記錄（非清單內）';
+              _currentStatusMessage = '已記錄';
+            });
+            
+            // 執行震動和聲音（如果啟用）
+            final vibrationEnabled = await AppSettingsService.isVibrationEnabled();
+            final soundEnabled = await AppSettingsService.isSoundEnabled();
+            
+            if (vibrationEnabled && await Vibration.hasVibrator() == true) {
+              Vibration.vibrate(duration: 100);
+            }
+            
+            if (soundEnabled) {
+              try {
+                await SystemSound.play(SystemSoundType.alert);
+              } catch (e) {
+                debugPrint('播放聲音失敗：$e');
+              }
+            }
+            
+            // 設定計時器恢復狀態
+            final statusDelaySeconds = await AppSettingsService.getStatusDelaySeconds();
+            if (mounted) {
+              _statusTimer = Timer(Duration(seconds: statusDelaySeconds), () {
+                if (mounted) {
+                  setState(() {
+                    _currentStatusMessage = '待掃描/輸入';
+                    _lastScanStatus = null;
+                    _lastScanMessage = null;
+                  });
+                }
+              });
+            }
+            
+            // 根據輸入模式處理
+            if (_inputMode == InputMode.scanner) {
+              _scannerInputTimer?.cancel();
+              _controller.clear();
+              _focusNode.requestFocus();
+            } else if (_inputMode == InputMode.camera) {
+              _cameraController?.start();
+            } else {
+              _controller.clear();
+            }
+            
+            setState(() {
+              _isScanning = false;
+            });
+            
+            return; // 提前返回，不執行後續的無此資料處理
+          } catch (e) {
+            debugPrint('記錄非清單內條碼失敗：$e');
+            // 如果記錄失敗，繼續執行正常的無此資料處理流程
+          }
+        }
+      }
 
       // 取消之前的計時器（如果存在）- 快速連續掃描時立即切換狀態
       _statusTimer?.cancel();
@@ -729,6 +826,23 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
       appBar: AppBar(
         title: const Text('總出貨核對'),
         automaticallyImplyLeading: true,
+        actions: [
+          // 非清單內出貨紀錄模式開關
+          Tooltip(
+            message: _offListRecordModeEnabled 
+                ? '非清單內出貨紀錄模式：已開啟' 
+                : '非清單內出貨紀錄模式：已關閉',
+            child: IconButton(
+              icon: Icon(
+                _offListRecordModeEnabled ? Icons.check_circle : Icons.radio_button_unchecked,
+                color: _offListRecordModeEnabled 
+                    ? Colors.green 
+                    : Theme.of(context).iconTheme.color,
+              ),
+              onPressed: _toggleOffListRecordMode,
+            ),
+          ),
+        ],
       ),
       body: Column(
         children: [

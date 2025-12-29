@@ -12,7 +12,7 @@ import 'dart:io';
 class DatabaseService {
   static Database? _database;
   static const String _dbName = 'scan_app.db';
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 2;
 
   // 取得資料庫實例
   static Future<Database> get database async {
@@ -66,6 +66,7 @@ class DatabaseService {
         dbPath,
         version: _dbVersion,
         onCreate: _onCreate,
+        onUpgrade: _onUpgrade,
         // 確保資料庫可以寫入
         readOnly: false,
         // 單一連線模式，避免並發問題
@@ -112,6 +113,38 @@ class DatabaseService {
     await db.execute('CREATE INDEX idx_batch_id ON scan_items(batch_id)');
     await db.execute('CREATE INDEX idx_logistics_no ON scan_items(logistics_no)');
     await db.execute('CREATE INDEX idx_order_date ON batches(order_date)');
+    
+    // 非清單內記錄表
+    await db.execute('''
+      CREATE TABLE off_list_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        logistics_no TEXT NOT NULL UNIQUE,
+        scan_time TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )
+    ''');
+    
+    // 建立索引
+    await db.execute('CREATE INDEX idx_off_list_logistics_no ON off_list_records(logistics_no)');
+    await db.execute('CREATE INDEX idx_off_list_scan_time ON off_list_records(scan_time)');
+  }
+
+  // 資料庫升級
+  static Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // 從版本 1 升級到版本 2：添加非清單內記錄表
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS off_list_records (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          logistics_no TEXT NOT NULL UNIQUE,
+          scan_time TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        )
+      ''');
+      
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_off_list_logistics_no ON off_list_records(logistics_no)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_off_list_scan_time ON off_list_records(scan_time)');
+    }
   }
 
   // ========== Batch 操作 ==========
@@ -601,6 +634,69 @@ class DatabaseService {
       where: 'order_date < ? AND finished_at IS NOT NULL',
       whereArgs: [cutoffDateStr],
     );
+  }
+
+  // ========== 非清單內記錄操作 ==========
+
+  // 插入非清單內記錄
+  static Future<void> insertOffListRecord(String logisticsNo) async {
+    final db = await database;
+    final now = await TimezoneHelper.getUtcNow();
+    final nowStr = now.toIso8601String();
+    
+    try {
+      await db.insert(
+        'off_list_records',
+        {
+          'logistics_no': logisticsNo,
+          'scan_time': nowStr,
+          'created_at': nowStr,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace, // 如果已存在則更新
+      );
+    } catch (e) {
+      debugPrint('插入非清單內記錄失敗：$e');
+      rethrow;
+    }
+  }
+
+  // 查詢所有非清單內記錄
+  static Future<List<Map<String, dynamic>>> getAllOffListRecords() async {
+    final db = await database;
+    return await db.query(
+      'off_list_records',
+      orderBy: 'scan_time DESC',
+    );
+  }
+
+  // 查詢指定時間範圍內的非清單內記錄
+  static Future<List<Map<String, dynamic>>> getOffListRecordsByDateRange(
+    String startDate,
+    String endDate,
+  ) async {
+    final db = await database;
+    return await db.query(
+      'off_list_records',
+      where: 'scan_time >= ? AND scan_time <= ?',
+      whereArgs: [startDate, endDate],
+      orderBy: 'scan_time DESC',
+    );
+  }
+
+  // 刪除非清單內記錄
+  static Future<void> deleteOffListRecord(int id) async {
+    final db = await database;
+    await db.delete(
+      'off_list_records',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // 清空所有非清單內記錄
+  static Future<int> deleteAllOffListRecords() async {
+    final db = await database;
+    return await db.delete('off_list_records');
   }
 
   // 關閉資料庫
