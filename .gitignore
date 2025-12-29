@@ -73,3 +73,9 @@ app.*.map.json
 # =========================
 *.lock.tmp
 .cache/
+
+# =========================
+# Project structure files
+# =========================
+project_structure.txt
+project_tree_generator.py
