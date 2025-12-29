@@ -25,6 +25,7 @@ lib/
 │   ├── database_service.dart
 │   ├── export_service.dart
 │   ├── google_sheets_service.dart
+│   ├── network_service.dart
 │   ├── ntp_service.dart
 │   ├── scan_service.dart
 │   ├── share_service.dart
@@ -62,10 +63,11 @@ lib/
 
 ### services/ - 服務層
 - `app_settings_service.dart` - 應用程式設定服務
-- `cleanup_service.dart` - 資料清理服務
+- `cleanup_service.dart` - 資料清理服務（7 天清理批次，10 天清理匯出檔案）
 - `database_service.dart` - 資料庫服務
 - `export_service.dart` - 匯出服務
 - `google_sheets_service.dart` - Google Sheets 服務
+- `network_service.dart` - 網路狀態檢查服務（檢查手機網路或 WiFi）
 - `ntp_service.dart` - NTP 時間同步服務
 - `scan_service.dart` - 掃描服務
 - `share_service.dart` - 分享服務
