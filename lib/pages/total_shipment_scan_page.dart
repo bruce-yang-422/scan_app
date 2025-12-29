@@ -543,10 +543,42 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
     
     // 讀取 TXT 內容用於複製（總出貨模式只有一個匯總檔案）
     String txtContent = '';
+    String lineContent = '';
     try {
       final txtFile = File(files.first.txtPath);
       if (await txtFile.exists()) {
         txtContent = await txtFile.readAsString(encoding: utf8);
+      }
+      
+      // 重新生成 ExportResult 以產生 LINE 版本（總出貨模式）
+      try {
+        final batchesList = await DatabaseService.getBatchesWithTodayScans();
+        final batchIds = batchesList.map((b) => b.id).toList();
+        final allBatches = <models.Batch>[];
+        final allItems = <ScanItem>[];
+        for (final batchId in batchIds) {
+          final batch = await DatabaseService.getBatch(batchId);
+          if (batch != null) {
+            allBatches.add(batch);
+            final items = await DatabaseService.getScanItemsByBatch(batchId);
+            allItems.addAll(items);
+          }
+        }
+        if (allBatches.isNotEmpty) {
+          final allStoreNames = allBatches.map((b) => b.storeName ?? '').where((n) => n.isNotEmpty).toSet().toList();
+          final allOrderDates = allBatches.map((b) => b.orderDate ?? '').where((d) => d.isNotEmpty).toSet().toList();
+          final exportResult = await ExportService.buildMultiBatchExportResult(
+            allBatches,
+            allItems,
+            allStoreNames,
+            allOrderDates,
+          );
+          lineContent = ExportService.generateLineText(exportResult);
+        }
+      } catch (e) {
+        // 如果無法生成 LINE 版本，使用 TXT 版本
+        lineContent = txtContent;
+        debugPrint('生成 LINE 版本失敗：$e');
       }
     } catch (e) {
       // 忽略讀取錯誤
@@ -585,6 +617,16 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
                       color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                     ),
                   ),
+                  if (jsonPath.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      jsonPath,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                    ),
+                  ],
                 ],
                 const SizedBox(height: 16),
                 const Text(
@@ -595,7 +637,28 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
             ),
           ),
           actions: [
-            // 複製 TXT 內容
+            // 複製 LINE 版本（簡潔格式）
+            if (lineContent.isNotEmpty)
+              TextButton.icon(
+                icon: const Icon(Icons.content_copy, size: 18),
+                label: const Text('複製 LINE 版本'),
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: lineContent));
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('已複製 LINE 版本到剪貼簿'),
+                        backgroundColor: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.green[700]
+                            : Colors.green,
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                },
+              ),
+            // 複製 TXT 內容（完整格式）
             if (txtContent.isNotEmpty)
               TextButton.icon(
                 icon: const Icon(Icons.copy, size: 18),
@@ -606,7 +669,7 @@ class _TotalShipmentScanPageState extends State<TotalShipmentScanPage> {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: const Text('已複製總出貨內容到剪貼簿，可貼到 LINE'),
+                        content: const Text('已複製 TXT 內容到剪貼簿'),
                         backgroundColor: Theme.of(context).brightness == Brightness.dark
                             ? Colors.green[700]
                             : Colors.green,
